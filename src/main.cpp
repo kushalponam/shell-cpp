@@ -13,6 +13,11 @@ int main() {
       continue;
     }
     
+    if (input == "exit")
+    {
+      break;
+    }
+  
     // For now, all commands are invalid
     std::cerr << input << ": command not found" << std::endl;
   }
