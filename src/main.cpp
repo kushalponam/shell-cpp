@@ -6,7 +6,16 @@ int main() {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  // TODO: Uncomment the code below to pass the first stage
-   std::cout << "$ ";
-   return 0;
+  std::string input;
+  while (true) {
+    std::cout << "$ ";
+    if (!std::getline(std::cin, input) || input.empty()) {
+      continue;
+    }
+    
+    // For now, all commands are invalid
+    std::cerr << input << ": command not found" << std::endl;
+  }
+
+  return 0;
 }
