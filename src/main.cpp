@@ -2,6 +2,10 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <cstdlib>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main() {
   // Flush after every std::cout / std:cerr
@@ -49,21 +53,37 @@ int main() {
         else
         {
           const std::string& cmd = args[0];
-          if (cmd == "echo")
+          if (cmd == "echo" || cmd == "type" || cmd == "exit")
           {
-            std::cout << "echo is a shell builtin" << std::endl;
-          }
-          else if (cmd == "type")
-          {
-            std::cout << "type is a shell builtin" << std::endl;
-          }
-          else if (cmd == "exit")
-          {
-            std::cout << "exit is a shell builtin" << std::endl;
+            std::cout << cmd << " is a shell builtin" << std::endl;
           }
           else
           {
-            std::cerr << cmd << ": not found" << std::endl;
+            // Search for executable in PATH
+            const char* path_env = std::getenv("PATH");
+            if (path_env == nullptr) {
+              std::cerr << cmd << ": not found" << std::endl;
+            } else {
+              std::string path_str(path_env);
+              std::istringstream path_stream(path_str);
+              std::string dir;
+              bool found = false;
+              
+              while (std::getline(path_stream, dir, ':')) {
+                std::string full_path = dir + "/" + cmd;
+                
+                // Check if file exists and is a regular file
+                if (fs::exists(full_path) && fs::is_regular_file(full_path)) {
+                  std::cout << cmd << " is " << full_path << std::endl;
+                  found = true;
+                  break;
+                }
+              }
+              
+              if (!found) {
+                std::cerr << cmd << ": not found" << std::endl;
+              }
+            }
           }
         }
     } 
