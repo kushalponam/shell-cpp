@@ -1,8 +1,12 @@
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <vector>
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <cwctype>
+#include <filesystem>
+#include <iostream>
+#include <ostream>
+#include <sstream>
+#include <string>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -68,22 +72,22 @@ int main() {
               std::istringstream path_stream(path_str);
               std::string dir;
               bool found = false;
-              
-              while (std::getline(path_stream, dir, ':')) {
+
+              while (std::getline(path_stream, dir, ':'))
+              {
                 std::string full_path = dir + "/" + cmd;
-                
-                // Check if file exists and is a regular file
-                if (fs::exists(full_path) && fs::is_regular_file(full_path)) {
-                  // Check if file has execute permissions
-                  auto perms = fs::status(full_path).permissions();
-                  // Check for owner execute permission (user execute)
-                  if ((perms & fs::perm::owner_exec) != fs::perm::none) {
+                if (fs::exists(full_path) && fs::is_regular_file(full_path))
+                {
+                  fs::perms filePerms = fs::status(full_path).permissions();
+                  if ((filePerms & fs::perms::owner_exec) == fs::perms::owner_exec)
+                  {
                     std::cout << cmd << " is " << full_path << std::endl;
                     found = true;
                     break;
                   }
                 }
               }
+              
               
               if (!found) {
                 std::cerr << cmd << ": not found" << std::endl;
