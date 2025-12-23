@@ -32,7 +32,6 @@ void handle_echo(const std::vector<std::string>& args) {
   std::cout << std::endl;
 }
 
-// Search for executable in PATH
 bool find_in_path(const std::string& cmd, std::string& full_path) {
   const char* path_env = std::getenv("PATH");
   if (path_env == nullptr) {
@@ -42,12 +41,30 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
   std::string path_str(path_env);
   std::istringstream path_stream(path_str);
   std::string dir;
+
+  // On Windows, PATH is separated by ';', on Unix by ':'
+  char separator = ';';
+  #ifdef __unix__
+    separator = ':';
+  #endif
   
-  while (std::getline(path_stream, dir, ':')) {
-    std::string candidate = dir + "/" + cmd;
+  while (std::getline(path_stream, dir, separator)) {
+    std::string candidate = dir;
+    #ifdef __unix__
+      candidate += "/" + cmd;
+    #else
+      candidate += "\\" + cmd;
+      // Try with .exe extension on Windows if the file without extension doesn't exist
+      if (!fs::exists(candidate)) {
+        candidate += ".exe";
+      }
+    #endif
+    
     if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
       fs::perms filePerms = fs::status(candidate).permissions();
-      if ((filePerms & fs::perms::owner_exec) == fs::perms::owner_exec) {
+      if (((filePerms & fs::perms::owner_exec) == fs::perms::owner_exec) ||
+          ((filePerms & fs::perms::group_exec) == fs::perms::group_exec) ||
+          ((filePerms & fs::perms::others_exec) == fs::perms::others_exec)) {
         full_path = candidate;
         return true;
       }
@@ -86,7 +103,8 @@ void execute_external_command(const std::string& cmd, const std::vector<std::str
   
   std::string full_path;
   if (find_in_path(cmd, full_path)) {
-    std::string full_command = cmd;
+    // Wrap full_path in quotes to handle spaces in paths
+    std::string full_command = "\"" + full_path + "\"";
     for (const auto& arg : args) {
       full_command += " " + arg;
     }
