@@ -40,7 +40,7 @@ int main() {
       }
       std::cout << std::endl;
     }
-    if (command == "type")
+    else if (command == "type")
     {
         if (args.size() != 1)
         {
