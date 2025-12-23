@@ -74,9 +74,14 @@ int main() {
                 
                 // Check if file exists and is a regular file
                 if (fs::exists(full_path) && fs::is_regular_file(full_path)) {
-                  std::cout << cmd << " is " << full_path << std::endl;
-                  found = true;
-                  break;
+                  // Check if file has execute permissions
+                  auto perms = fs::status(full_path).permissions();
+                  // Check for owner execute permission (user execute)
+                  if ((perms & fs::perm::owner_exec) != fs::perm::none) {
+                    std::cout << cmd << " is " << full_path << std::endl;
+                    found = true;
+                    break;
+                  }
                 }
               }
               
