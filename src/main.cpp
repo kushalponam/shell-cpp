@@ -4,7 +4,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
+#include <set>
 namespace fs = std::filesystem;
 
 // Builtin command names
@@ -13,6 +13,8 @@ const std::string BUILTIN_TYPE = "type";
 const std::string BUILTIN_EXIT = "exit";
 const std::string BUILTIN_PWD = "pwd";
 const std::string BUILTIN_CD = "cd";
+
+const std::set<char> EscapedCharsInDoubleQuotes = {'$', '`', '"', '\\', '\n'};
 
 // Check if a file has execute permissions
 bool has_execute_permission(const fs::path& path) {
@@ -27,55 +29,59 @@ void parse_input(const std::string& input, std::string& command, std::vector<std
   command.clear();
   args.clear();
   
-  size_t i=0;
+  size_t i = 0;
 
-  while(i < input.size() && input[i] == ' ') i++; // skip leading spaces
-  while(i < input.size() && input[i] != ' ') {
-    command += input[i];
-    i++;
-  }
+  // Skip leading whitespace and extract command
+  while (i < input.size() && input[i] == ' ') i++;
+  while (i < input.size() && input[i] != ' ') command += input[i++];
+  while (i < input.size() && input[i] == ' ') i++;
 
   bool in_double_quote = false;
   bool in_single_quote = false;
   std::string current_arg;
 
   while (i < input.size()) {
-    if (input[i] == '"' && !in_single_quote)
+    char c = input[i];
+    
+    if (c == '"' && !in_single_quote) 
     {
       in_double_quote = !in_double_quote;
-    }
-    else if (input[i] == '\'' && !in_double_quote)
+    } 
+    else if (c == '\'' && !in_double_quote) 
     {
       in_single_quote = !in_single_quote;
-    }
-    else if (input[i] == '\\' && !in_single_quote && !in_double_quote) 
+    } 
+    else if (c == '\\' && !in_single_quote && i + 1 < input.size()) 
     {
-      i++;
-      if (i < input.size()) 
+      // In double quotes, only escape special chars; outside quotes, escape all
+      bool should_escape = !in_double_quote || EscapedCharsInDoubleQuotes.contains(input[i + 1]);
+      if (should_escape) 
       {
-        current_arg += input[i];
+        current_arg += input[++i];  // Skip backslash, add next char
+      } 
+      else 
+      {
+        current_arg += c;  // Add backslash literally
       }
-    }
-    else if (input[i] == ' ' && !in_single_quote && !in_double_quote)
+    } 
+    else if (c == ' ' && !in_single_quote && !in_double_quote) 
     {
       if (!current_arg.empty()) 
       {
-          args.push_back(current_arg);
-          current_arg.clear();
+        args.push_back(current_arg);
+        current_arg.clear();
       }
-    }
-    else
+    } 
+    else 
     {
-      current_arg += input[i];
+      current_arg += c;
     }
-
     i++;
   }
 
   if (!current_arg.empty()) {
-      args.push_back(current_arg);
+    args.push_back(current_arg);
   }
-  
 }
 
 // Handle echo builtin
@@ -200,7 +206,16 @@ void execute_external_command(const std::string& cmd, const std::vector<std::str
     // Let system() search PATH for us on all platforms
     std::string full_command = cmd;
     for (const auto& arg : args) {
-      full_command += " \"" + arg + "\""; 
+      // Escape only quotes in the argument (to prevent shell from misinterpreting)
+      std::string escaped_arg;
+      for (size_t i = 0; i < arg.size(); i++) {
+        if (arg[i] == '"')
+        {
+          escaped_arg += '\\';
+        }
+        escaped_arg += arg[i];
+      }
+      full_command += " \"" + escaped_arg + "\""; 
     }
     system(full_command.c_str());
   } else {
