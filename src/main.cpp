@@ -1,15 +1,25 @@
-#include <algorithm>
-#include <cctype>
 #include <cstdlib>
-#include <cwctype>
 #include <filesystem>
 #include <iostream>
-#include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace fs = std::filesystem;
+
+// Builtin command names
+const std::string BUILTIN_ECHO = "echo";
+const std::string BUILTIN_TYPE = "type";
+const std::string BUILTIN_EXIT = "exit";
+const std::string BUILTIN_PWD = "pwd";
+
+// Check if a file has execute permissions
+bool has_execute_permission(const fs::path& path) {
+  fs::perms perms = fs::status(path).permissions();
+  return ((perms & fs::perms::owner_exec) == fs::perms::owner_exec) ||
+         ((perms & fs::perms::group_exec) == fs::perms::group_exec) ||
+         ((perms & fs::perms::others_exec) == fs::perms::others_exec);
+}
 
 // Parse input string into command and arguments
 void parse_input(const std::string& input, std::string& command, std::vector<std::string>& args) {
@@ -53,27 +63,26 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
     separator = ':';
   #endif
   
-  while (std::getline(path_stream, dir, separator)) {    
-    std::string candidate = dir;
-    #ifdef __unix__
-      candidate += "/" + cmd;
-    #else
-      // Use forward slashes for Windows too - they work in cmd.exe and avoid escaping issues
-      candidate += "\\" + cmd;
-      // Try with .exe extension on Windows if the file without extension doesn't exist
+  while (std::getline(path_stream, dir, separator)) {
+    // Build candidate path
+    std::string sep = "/";
+    #ifndef __unix__
+      sep = "\\";
+    #endif
+    
+    std::string candidate = dir + sep + cmd;
+    
+    // Try with .exe extension on Windows if needed
+    #ifndef __unix__
       if (!fs::exists(candidate)) {
         candidate += ".exe";
       }
     #endif
     
-    if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
-      fs::perms filePerms = fs::status(candidate).permissions();
-      if (((filePerms & fs::perms::owner_exec) == fs::perms::owner_exec) ||
-          ((filePerms & fs::perms::group_exec) == fs::perms::group_exec) ||
-          ((filePerms & fs::perms::others_exec) == fs::perms::others_exec)) {
-        full_path = candidate;
-        return true;
-      }
+    // Check if file exists, is regular, and is executable
+    if (fs::exists(candidate) && fs::is_regular_file(candidate) && has_execute_permission(candidate)) {
+      full_path = candidate;
+      return true;
     }
   }
   
@@ -90,7 +99,7 @@ void handle_type(const std::vector<std::string>& args) {
   const std::string& cmd = args[0];
   
   // Check if it's a builtin
-  if (cmd == "echo" || cmd == "type" || cmd == "exit" || cmd == "pwd") {
+  if (cmd == BUILTIN_ECHO || cmd == BUILTIN_TYPE || cmd == BUILTIN_EXIT || cmd == BUILTIN_PWD) {
     std::cout << cmd << " is a shell builtin" << std::endl;
     return;
   }
@@ -106,21 +115,22 @@ void handle_type(const std::vector<std::string>& args) {
 
 // Execute external command using system()
 void execute_external_command(const std::string& cmd, const std::vector<std::string>& args) {
-  
   std::string full_path;
   if (find_in_path(cmd, full_path)) {
-    // Wrap full_path in quotes to handle spaces in paths
-    std::string full_command = "\"" + full_path + "\"";
-    #ifdef __unix__
-     full_command = cmd;
+    // Build command string
+    // On Unix, use just the command name (system will search PATH)
+    // On Windows, use the full path
+    std::string exec_name = cmd;
+    #ifndef __unix__
+      exec_name = full_path;
     #endif
+    
+    std::string full_command = "\"" + exec_name + "\"";
     for (const auto& arg : args) {
-      full_command += " " + arg;
+      full_command += " \"" + arg + "\"";
     }
     system(full_command.c_str());
-  } 
-  else 
-  {
+  } else {
     std::cerr << cmd << ": command not found" << std::endl;
   }
 }
@@ -137,7 +147,7 @@ int main() {
       continue;
     }
     
-    if (input == "exit") {
+    if (input == BUILTIN_EXIT) {
       break;
     }
   
@@ -147,11 +157,11 @@ int main() {
     parse_input(input, command, args);
     
     // Handle commands
-    if (command == "echo") {
+    if (command == BUILTIN_ECHO) {
       handle_echo(args);
-    } else if (command == "type") {
+    } else if (command == BUILTIN_TYPE) {
       handle_type(args);
-    } else if (command == "pwd") {
+    } else if (command == BUILTIN_PWD) {
       handle_pwd();
     } else {
       // Try to execute as external command
