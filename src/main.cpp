@@ -12,6 +12,7 @@ const std::string BUILTIN_ECHO = "echo";
 const std::string BUILTIN_TYPE = "type";
 const std::string BUILTIN_EXIT = "exit";
 const std::string BUILTIN_PWD = "pwd";
+const std::string BUILTIN_CD = "cd";
 
 // Check if a file has execute permissions
 bool has_execute_permission(const fs::path& path) {
@@ -45,6 +46,29 @@ void handle_echo(const std::vector<std::string>& args) {
 // Handle pwd builtin
 void handle_pwd() {
   std::cout << fs::current_path().string() << std::endl;
+}
+
+// Handle cd builtin
+void handle_cd(const std::vector<std::string>& args) {
+  if (args.size() != 1) {
+    std::cerr << "cd: wrong number of arguments" << std::endl;
+    return;
+  }
+  
+  const std::string& directory = args[0];
+  
+  // Check if directory exists
+  if (!fs::exists(directory) || !fs::is_directory(directory)) {
+    std::cerr << "cd: " << directory << ": No such file or directory" << std::endl;
+    return;
+  }
+  
+  // Change directory
+  try {
+    fs::current_path(directory);
+  } catch (const std::exception& e) {
+    std::cerr << "cd: " << directory << ": No such file or directory" << std::endl;
+  }
 }
 
 bool find_in_path(const std::string& cmd, std::string& full_path) {
@@ -99,7 +123,7 @@ void handle_type(const std::vector<std::string>& args) {
   const std::string& cmd = args[0];
   
   // Check if it's a builtin
-  if (cmd == BUILTIN_ECHO || cmd == BUILTIN_TYPE || cmd == BUILTIN_EXIT || cmd == BUILTIN_PWD) {
+  if (cmd == BUILTIN_ECHO || cmd == BUILTIN_TYPE || cmd == BUILTIN_EXIT || cmd == BUILTIN_PWD || cmd == BUILTIN_CD) {
     std::cout << cmd << " is a shell builtin" << std::endl;
     return;
   }
@@ -163,6 +187,8 @@ int main() {
       handle_type(args);
     } else if (command == BUILTIN_PWD) {
       handle_pwd();
+    } else if (command == BUILTIN_CD) {
+      handle_cd(args);
     } else {
       // Try to execute as external command
       execute_external_command(command, args);
