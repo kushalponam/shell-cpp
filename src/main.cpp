@@ -29,9 +29,29 @@ void parse_input(const std::string& input, std::string& command, std::vector<std
   args.clear();
   
   iss >> command;
-  std::string arg;
-  while (iss >> arg) {
-    args.push_back(arg);
+  
+  bool in_single_quote = false;
+  std::string current_arg;
+  for (size_t i = command.size(); i < input.size(); i++) {
+      if (input[i] == '\'')
+      {
+        in_single_quote = !in_single_quote;
+      }
+      else if (input[i] == ' ' && !in_single_quote)
+      {
+        if (!current_arg.empty()) {
+            args.push_back(current_arg);
+            current_arg.clear();
+        }
+      }
+      else
+      {
+        current_arg += input[i];
+      }
+  }
+
+  if (!current_arg.empty()) {
+      args.push_back(current_arg);
   }
 }
 
@@ -78,7 +98,7 @@ void handle_cd(const std::vector<std::string>& args) {
   // Change directory
   try {
     fs::current_path(directory);
-  } catch (const std::exception& e) {
+  } catch (const std::exception& ) {
     std::cerr << "cd: " << original_arg << ": No such file or directory" << std::endl;
   }
 }
@@ -153,17 +173,11 @@ void handle_type(const std::vector<std::string>& args) {
 void execute_external_command(const std::string& cmd, const std::vector<std::string>& args) {
   std::string full_path;
   if (find_in_path(cmd, full_path)) {
-    // Build command string
-    // On Unix, use just the command name (system will search PATH)
-    // On Windows, use the full path
-    std::string exec_name = cmd;
-    #ifndef __unix__
-      exec_name = full_path;
-    #endif
-    
-    std::string full_command = "\"" + exec_name + "\"";
+    // Build command string using just the command name
+    // Let system() search PATH for us on all platforms
+    std::string full_command = cmd;
     for (const auto& arg : args) {
-      full_command += " " + arg;
+      full_command += " \"" + arg + "\""; 
     }
     system(full_command.c_str());
   } else {
