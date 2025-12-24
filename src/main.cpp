@@ -127,7 +127,7 @@ void execute_external_command(const std::string& cmd, const std::vector<std::str
     
     std::string full_command = "\"" + exec_name + "\"";
     for (const auto& arg : args) {
-      full_command += " \"" + arg + "\"";
+      full_command += " " + arg;
     }
     system(full_command.c_str());
   } else {
