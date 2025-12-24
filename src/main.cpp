@@ -48,11 +48,12 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
     separator = ':';
   #endif
   
-  while (std::getline(path_stream, dir, separator)) {
+  while (std::getline(path_stream, dir, separator)) {    
     std::string candidate = dir;
     #ifdef __unix__
       candidate += "/" + cmd;
     #else
+      // Use forward slashes for Windows too - they work in cmd.exe and avoid escaping issues
       candidate += "\\" + cmd;
       // Try with .exe extension on Windows if the file without extension doesn't exist
       if (!fs::exists(candidate)) {
@@ -84,7 +85,7 @@ void handle_type(const std::vector<std::string>& args) {
   const std::string& cmd = args[0];
   
   // Check if it's a builtin
-  if (cmd == "echo" || cmd == "type" || cmd == "exit") {
+  if (cmd == "echo" || cmd == "type" || cmd == "exit" || cmd == "pwd") {
     std::cout << cmd << " is a shell builtin" << std::endl;
     return;
   }
