@@ -32,6 +32,11 @@ void handle_echo(const std::vector<std::string>& args) {
   std::cout << std::endl;
 }
 
+// Handle pwd builtin
+void handle_pwd() {
+  std::cout << fs::current_path().string() << std::endl;
+}
+
 bool find_in_path(const std::string& cmd, std::string& full_path) {
   const char* path_env = std::getenv("PATH");
   if (path_env == nullptr) {
@@ -143,6 +148,8 @@ int main() {
       handle_echo(args);
     } else if (command == "type") {
       handle_type(args);
+    } else if (command == "pwd") {
+      handle_pwd();
     } else {
       // Try to execute as external command
       execute_external_command(command, args);
