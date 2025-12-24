@@ -55,11 +55,23 @@ void handle_cd(const std::vector<std::string>& args) {
     return;
   }
   
-  const std::string& directory = args[0];
+  std::string directory = args[0];
+  const std::string original_arg = directory;  // Keep original for error messages
+  
+  // Handle ~ character (home directory)
+  if (!directory.empty() && directory[0] == '~') {
+    const char* home = std::getenv("HOME");
+    if (home == nullptr) {
+      std::cerr << "cd: HOME not set" << std::endl;
+      return;
+    }
+    // Replace ~ with HOME directory
+    directory = std::string(home) + directory.substr(1);
+  }
   
   // Check if directory exists
   if (!fs::exists(directory) || !fs::is_directory(directory)) {
-    std::cerr << "cd: " << directory << ": No such file or directory" << std::endl;
+    std::cerr << "cd: " << original_arg << ": No such file or directory" << std::endl;
     return;
   }
   
@@ -67,7 +79,7 @@ void handle_cd(const std::vector<std::string>& args) {
   try {
     fs::current_path(directory);
   } catch (const std::exception& e) {
-    std::cerr << "cd: " << directory << ": No such file or directory" << std::endl;
+    std::cerr << "cd: " << original_arg << ": No such file or directory" << std::endl;
   }
 }
 
