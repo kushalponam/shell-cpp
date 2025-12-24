@@ -24,40 +24,58 @@ bool has_execute_permission(const fs::path& path) {
 
 // Parse input string into command and arguments
 void parse_input(const std::string& input, std::string& command, std::vector<std::string>& args) {
-  std::istringstream iss(input);
   command.clear();
   args.clear();
   
-  iss >> command;
-  
+  size_t i=0;
+
+  while(i < input.size() && input[i] == ' ') i++; // skip leading spaces
+  while(i < input.size() && input[i] != ' ') {
+    command += input[i];
+    i++;
+  }
+
   bool in_double_quote = false;
   bool in_single_quote = false;
   std::string current_arg;
-  for (size_t i = command.size(); i < input.size(); i++) {
-      if (input[i] == '\"')
-      {
-        in_double_quote = !in_double_quote;
-      }
-      else if (input[i] == '\'' && !in_double_quote)
-      {
-        in_single_quote = !in_single_quote;
-      }
-      else if (input[i] == ' ' && !in_single_quote && !in_double_quote)
-      {
-        if (!current_arg.empty()) {
-            args.push_back(current_arg);
-            current_arg.clear();
-        }
-      }
-      else
+
+  while (i < input.size()) {
+    if (input[i] == '"' && !in_single_quote)
+    {
+      in_double_quote = !in_double_quote;
+    }
+    else if (input[i] == '\'' && !in_double_quote)
+    {
+      in_single_quote = !in_single_quote;
+    }
+    else if (input[i] == '\\' && !in_single_quote && !in_double_quote) 
+    {
+      i++;
+      if (i < input.size()) 
       {
         current_arg += input[i];
       }
+    }
+    else if (input[i] == ' ' && !in_single_quote && !in_double_quote)
+    {
+      if (!current_arg.empty()) 
+      {
+          args.push_back(current_arg);
+          current_arg.clear();
+      }
+    }
+    else
+    {
+      current_arg += input[i];
+    }
+
+    i++;
   }
 
   if (!current_arg.empty()) {
       args.push_back(current_arg);
   }
+  
 }
 
 // Handle echo builtin
