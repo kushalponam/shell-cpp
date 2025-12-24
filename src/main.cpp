@@ -24,63 +24,77 @@ bool has_execute_permission(const fs::path& path) {
          ((perms & fs::perms::others_exec) == fs::perms::others_exec);
 }
 
+// Extract a quoted/escaped string from input starting at position i
+// Returns the processed string (without outer quotes) and advances i
+std::string extract_quoted_string(const std::string& input, size_t& i) {
+  std::string result;
+  bool in_single_quote = false;
+  bool in_double_quote = false;
+  
+  while (i < input.size()) 
+  {
+    char c = input[i];
+    
+    if (c == '\'' && !in_double_quote) 
+    {
+      in_single_quote = !in_single_quote;
+    } 
+    else if (c == '"' && !in_single_quote) 
+    {
+      in_double_quote = !in_double_quote;
+    } 
+    else if (c == '\\' && !in_single_quote && i + 1 < input.size()) 
+    {
+      // Handle escapes: in double quotes only for special chars, outside quotes for all
+      bool should_escape = !in_double_quote || EscapedCharsInDoubleQuotes.contains(input[i + 1]);
+      if (should_escape) 
+      {
+        result += input[++i];  // Skip backslash, add next char
+      } 
+      else 
+      {
+        result += c;  // Add backslash literally
+      }
+    } 
+    else if (c == ' ' && !in_single_quote && !in_double_quote) 
+    {
+      break;  // End of this token
+    } 
+    else 
+    {
+      result += c;
+    }
+    
+    i++;
+  }
+  
+  return result;
+}
+
 // Parse input string into command and arguments
 void parse_input(const std::string& input, std::string& command, std::vector<std::string>& args) {
   command.clear();
   args.clear();
   
   size_t i = 0;
-
-  // Skip leading whitespace and extract command
+  
+  // Skip leading whitespace
   while (i < input.size() && input[i] == ' ') i++;
-  while (i < input.size() && input[i] != ' ') command += input[i++];
+  
+  // Extract command
+  command = extract_quoted_string(input, i);
+  
+  // Skip whitespace after command
   while (i < input.size() && input[i] == ' ') i++;
-
-  bool in_double_quote = false;
-  bool in_single_quote = false;
-  std::string current_arg;
-
+  
+  // Extract arguments
   while (i < input.size()) {
-    char c = input[i];
-    
-    if (c == '"' && !in_single_quote) 
-    {
-      in_double_quote = !in_double_quote;
-    } 
-    else if (c == '\'' && !in_double_quote) 
-    {
-      in_single_quote = !in_single_quote;
-    } 
-    else if (c == '\\' && !in_single_quote && i + 1 < input.size()) 
-    {
-      // In double quotes, only escape special chars; outside quotes, escape all
-      bool should_escape = !in_double_quote || EscapedCharsInDoubleQuotes.contains(input[i + 1]);
-      if (should_escape) 
-      {
-        current_arg += input[++i];  // Skip backslash, add next char
-      } 
-      else 
-      {
-        current_arg += c;  // Add backslash literally
-      }
-    } 
-    else if (c == ' ' && !in_single_quote && !in_double_quote) 
-    {
-      if (!current_arg.empty()) 
-      {
-        args.push_back(current_arg);
-        current_arg.clear();
-      }
-    } 
-    else 
-    {
-      current_arg += c;
+    std::string arg = extract_quoted_string(input, i);
+    if (!arg.empty()) {
+      args.push_back(arg);
     }
-    i++;
-  }
-
-  if (!current_arg.empty()) {
-    args.push_back(current_arg);
+    // Skip whitespace between arguments
+    while (i < input.size() && input[i] == ' ') i++;
   }
 }
 
@@ -198,24 +212,26 @@ void handle_type(const std::vector<std::string>& args) {
   }
 }
 
+// Escape quotes in a string for passing to system()
+std::string escape_for_shell(const std::string& str) {
+  std::string result;
+  for (char c : str) {
+    if (c == '"') {
+      result += '\\';
+    }
+    result += c;
+  }
+  return result;
+}
+
 // Execute external command using system()
 void execute_external_command(const std::string& cmd, const std::vector<std::string>& args) {
   std::string full_path;
   if (find_in_path(cmd, full_path)) {
-    // Build command string using just the command name
-    // Let system() search PATH for us on all platforms
-    std::string full_command = cmd;
+    // Build command string with quoted command name and arguments
+    std::string full_command = "\"" + escape_for_shell(cmd) + "\"";
     for (const auto& arg : args) {
-      // Escape only quotes in the argument (to prevent shell from misinterpreting)
-      std::string escaped_arg;
-      for (size_t i = 0; i < arg.size(); i++) {
-        if (arg[i] == '"')
-        {
-          escaped_arg += '\\';
-        }
-        escaped_arg += arg[i];
-      }
-      full_command += " \"" + escaped_arg + "\""; 
+      full_command += " \"" + escape_for_shell(arg) + "\"";
     }
     system(full_command.c_str());
   } else {
