@@ -111,6 +111,9 @@ void execute_external_command(const std::string& cmd, const std::vector<std::str
   if (find_in_path(cmd, full_path)) {
     // Wrap full_path in quotes to handle spaces in paths
     std::string full_command = "\"" + full_path + "\"";
+    #ifdef __unix__
+     full_command = cmd;
+    #endif
     for (const auto& arg : args) {
       full_command += " " + arg;
     }
