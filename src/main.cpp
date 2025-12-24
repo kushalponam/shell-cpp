@@ -30,14 +30,19 @@ void parse_input(const std::string& input, std::string& command, std::vector<std
   
   iss >> command;
   
+  bool in_double_quote = false;
   bool in_single_quote = false;
   std::string current_arg;
   for (size_t i = command.size(); i < input.size(); i++) {
-      if (input[i] == '\'')
+      if (input[i] == '\"')
+      {
+        in_double_quote = !in_double_quote;
+      }
+      else if (input[i] == '\'' && !in_double_quote)
       {
         in_single_quote = !in_single_quote;
       }
-      else if (input[i] == ' ' && !in_single_quote)
+      else if (input[i] == ' ' && !in_single_quote && !in_double_quote)
       {
         if (!current_arg.empty()) {
             args.push_back(current_arg);
