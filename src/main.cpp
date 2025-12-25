@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -16,8 +18,72 @@ const std::string BUILTIN_CD = "cd";
 
 const std::set<char> EscapedCharsInDoubleQuotes = {'$', '`', '"', '\\', '\n'};
 
+struct user_input
+{
+  std::string command = "";
+  std::vector<std::string> args = {};
+  std::string redirect_filename = "";
+
+  bool has_redirect() const
+  {
+    return !redirect_filename.empty();
+  }
+
+  bool has_builtin_command() const
+  {
+    return command == BUILTIN_ECHO || command == BUILTIN_TYPE ||
+           command == BUILTIN_EXIT || command == BUILTIN_PWD ||
+           command == BUILTIN_CD;
+  }
+
+  bool has_arguments() const
+  {
+    return !args.empty();
+  }
+};
+
+//RAII class to redirect stdout to a file
+class stdout_redirector
+{
+  public:
+    stdout_redirector(const std::string& filename)
+    {
+      original_buf = std::cout.rdbuf(); // Save original buffer
+
+      fs::path file_path(filename);
+      if (!file_path.is_absolute() && file_path.has_parent_path())
+      {
+        fs::create_directories(file_path.parent_path());
+      }
+
+      file_stream.open(filename, std::ios::out | std::ios::trunc);
+      if (file_stream.is_open())
+      {
+        std::cout.rdbuf(file_stream.rdbuf()); // Redirect stdout to file
+      }
+      else
+      {
+        throw std::runtime_error("Failed to open file for redirection");
+      }
+    }
+
+    ~stdout_redirector()
+    {
+      std::cout.rdbuf(original_buf); // Restore original buffer
+      if (file_stream.is_open())
+      {
+        file_stream.close();
+      }
+    }
+
+  private:
+    std::streambuf* original_buf;
+    std::ofstream file_stream;
+};
+
 // Check if a file has execute permissions
-bool has_execute_permission(const fs::path& path) {
+bool has_execute_permission(const fs::path& path)
+{
   fs::perms perms = fs::status(path).permissions();
   return ((perms & fs::perms::owner_exec) == fs::perms::owner_exec) ||
          ((perms & fs::perms::group_exec) == fs::perms::group_exec) ||
@@ -26,7 +92,8 @@ bool has_execute_permission(const fs::path& path) {
 
 // Extract a quoted/escaped string from input starting at position i
 // Returns the processed string (without outer quotes) and advances i
-std::string extract_quoted_string(const std::string& input, size_t& i) {
+std::string extract_quoted_string(const std::string& input, size_t& i)
+{
   std::string result;
   bool in_single_quote = false;
   bool in_double_quote = false;
@@ -72,9 +139,11 @@ std::string extract_quoted_string(const std::string& input, size_t& i) {
 }
 
 // Parse input string into command and arguments
-void parse_input(const std::string& input, std::string& command, std::vector<std::string>& args) {
-  command.clear();
-  args.clear();
+void parse_input(const std::string& input, user_input &u_input)
+{
+  u_input.command.clear();
+  u_input.args.clear();
+  u_input.redirect_filename.clear();
   
   size_t i = 0;
   
@@ -82,38 +151,67 @@ void parse_input(const std::string& input, std::string& command, std::vector<std
   while (i < input.size() && input[i] == ' ') i++;
   
   // Extract command
-  command = extract_quoted_string(input, i);
+  u_input.command = extract_quoted_string(input, i);
   
   // Skip whitespace after command
   while (i < input.size() && input[i] == ' ') i++;
   
   // Extract arguments
-  while (i < input.size()) {
+  while (i < input.size())
+  {
     std::string arg = extract_quoted_string(input, i);
-    if (!arg.empty()) {
-      args.push_back(arg);
+    if (!arg.empty())
+    {
+      u_input.args.push_back(arg);
     }
     // Skip whitespace between arguments
     while (i < input.size() && input[i] == ' ') i++;
   }
+
+  if (u_input.has_arguments())
+  {
+    // check for redirection operator
+    for (size_t j = 0; j <u_input.args.size(); j++)
+    {
+      if (u_input.args[j] == ">" || u_input.args[j] == "1>")
+      {
+        if (j + 1 < u_input.args.size())
+        {
+          u_input.redirect_filename = u_input.args[j + 1];
+          // Remove redirection operator and filename from args
+          u_input.args.erase(u_input.args.begin() + j, u_input.args.begin() + j + 2);
+        }
+        else
+        {
+          std::cerr << "Error: No filename provided for redirection" << std::endl;
+        }
+        break; // Only handle first redirection
+      }
+    }
+  }
 }
 
 // Handle echo builtin
-void handle_echo(const std::vector<std::string>& args) {
-  for (size_t i = 0; i < args.size(); ++i) {
+void handle_echo(const std::vector<std::string>& args)
+{
+  for (size_t i = 0; i < args.size(); ++i)
+  {
     std::cout << args[i] << (i < args.size() - 1 ? " " : "");
   }
   std::cout << std::endl;
 }
 
 // Handle pwd builtin
-void handle_pwd() {
+void handle_pwd()
+{
   std::cout << fs::current_path().string() << std::endl;
 }
 
 // Handle cd builtin
-void handle_cd(const std::vector<std::string>& args) {
-  if (args.size() != 1) {
+void handle_cd(const std::vector<std::string>& args)
+{
+  if (args.size() != 1)
+  {
     std::cerr << "cd: wrong number of arguments" << std::endl;
     return;
   }
@@ -122,9 +220,11 @@ void handle_cd(const std::vector<std::string>& args) {
   const std::string original_arg = directory;  // Keep original for error messages
   
   // Handle ~ character (home directory)
-  if (!directory.empty() && directory[0] == '~') {
+  if (!directory.empty() && directory[0] == '~')
+  {
     const char* home = std::getenv("HOME");
-    if (home == nullptr) {
+    if (home == nullptr)
+    {
       std::cerr << "cd: HOME not set" << std::endl;
       return;
     }
@@ -133,22 +233,28 @@ void handle_cd(const std::vector<std::string>& args) {
   }
   
   // Check if directory exists
-  if (!fs::exists(directory) || !fs::is_directory(directory)) {
+  if (!fs::exists(directory) || !fs::is_directory(directory))
+  {
     std::cerr << "cd: " << original_arg << ": No such file or directory" << std::endl;
     return;
   }
   
   // Change directory
-  try {
+  try
+  {
     fs::current_path(directory);
-  } catch (const std::exception& ) {
+  }
+  catch (const std::exception&)
+  {
     std::cerr << "cd: " << original_arg << ": No such file or directory" << std::endl;
   }
 }
 
-bool find_in_path(const std::string& cmd, std::string& full_path) {
+bool find_in_path(const std::string& cmd, std::string& full_path)
+{
   const char* path_env = std::getenv("PATH");
-  if (path_env == nullptr) {
+  if (path_env == nullptr)
+  {
     return false;
   }
   
@@ -162,7 +268,8 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
     separator = ':';
   #endif
   
-  while (std::getline(path_stream, dir, separator)) {
+  while (std::getline(path_stream, dir, separator))
+  {
     // Build candidate path
     std::string sep = "/";
     #ifndef __unix__
@@ -173,13 +280,15 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
     
     // Try with .exe extension on Windows if needed
     #ifndef __unix__
-      if (!fs::exists(candidate)) {
+      if (!fs::exists(candidate))
+      {
         candidate += ".exe";
       }
     #endif
     
     // Check if file exists, is regular, and is executable
-    if (fs::exists(candidate) && fs::is_regular_file(candidate) && has_execute_permission(candidate)) {
+    if (fs::exists(candidate) && fs::is_regular_file(candidate) && has_execute_permission(candidate))
+    {
       full_path = candidate;
       return true;
     }
@@ -189,8 +298,10 @@ bool find_in_path(const std::string& cmd, std::string& full_path) {
 }
 
 // Handle type builtin
-void handle_type(const std::vector<std::string>& args) {
-  if (args.size() != 1) {
+void handle_type(const std::vector<std::string>& args)
+{
+  if (args.size() != 1)
+  {
     std::cerr << "type: invalid number of arguments" << std::endl;
     return;
   }
@@ -198,26 +309,41 @@ void handle_type(const std::vector<std::string>& args) {
   const std::string& cmd = args[0];
   
   // Check if it's a builtin
-  if (cmd == BUILTIN_ECHO || cmd == BUILTIN_TYPE || cmd == BUILTIN_EXIT || cmd == BUILTIN_PWD || cmd == BUILTIN_CD) {
+  if (cmd == BUILTIN_ECHO || cmd == BUILTIN_TYPE || cmd == BUILTIN_EXIT || cmd == BUILTIN_PWD || cmd == BUILTIN_CD)
+  {
     std::cout << cmd << " is a shell builtin" << std::endl;
     return;
   }
   
   // Search for executable in PATH
   std::string full_path;
-  if (find_in_path(cmd, full_path)) {
+  if (find_in_path(cmd, full_path))
+  {
     std::cout << cmd << " is " << full_path << std::endl;
-  } else {
+  }
+  else
+  {
     std::cerr << cmd << ": not found" << std::endl;
   }
 }
 
 // Escape quotes in a string for passing to system()
-std::string escape_for_shell(const std::string& str) {
+// Returns the escaped string and sets needs_quoting if escaping occurred or string has special chars
+std::string escape_for_shell(const std::string& str, bool& needs_quoting)
+{
+  needs_quoting = false;
   std::string result;
-  for (char c : str) {
-    if (c == '"') {
+  for (char c : str)
+  {
+    if (c == '"')
+    {
       result += '\\';
+      needs_quoting = true;
+    }
+    else if (c == ' ' || c == '\'')
+    {
+      // Single quotes and spaces need quoting (wrap in double quotes)
+      needs_quoting = true;
     }
     result += c;
   }
@@ -225,53 +351,102 @@ std::string escape_for_shell(const std::string& str) {
 }
 
 // Execute external command using system()
-void execute_external_command(const std::string& cmd, const std::vector<std::string>& args) {
+void execute_external_command(const std::string& cmd, const std::vector<std::string>& args, const std::string& redirect_file = "")
+{
   std::string full_path;
-  if (find_in_path(cmd, full_path)) {
-    // Build command string with quoted command name and arguments
-    std::string full_command = "\"" + escape_for_shell(cmd) + "\"";
-    for (const auto& arg : args) {
-      full_command += " \"" + escape_for_shell(arg) + "\"";
+  if (find_in_path(cmd, full_path))
+  {
+    // Build command string - quote only if necessary
+    bool needs_quoting;
+    std::string escaped_cmd = escape_for_shell(cmd, needs_quoting);
+    std::string full_command = needs_quoting ? "\"" + escaped_cmd + "\"" : escaped_cmd;
+    
+    for (const auto& arg : args)
+    {
+      std::string escaped_arg = escape_for_shell(arg, needs_quoting);
+      full_command +=  " \"" + escaped_arg + "\"";
     }
+    
+    // Append redirection if specified
+    if (!redirect_file.empty())
+    {
+      full_command += " > \"" + redirect_file + "\"";
+    }
+    
     system(full_command.c_str());
-  } else {
+  }
+  else
+  {
     std::cerr << cmd << ": command not found" << std::endl;
   }
 }
 
-int main() {
+int main()
+{
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
   std::string input;
-  while (true) {
+  while (true)
+  {
     std::cout << "$ ";
-    if (!std::getline(std::cin, input) || input.empty()) {
+    if (!std::getline(std::cin, input) || input.empty())
+    {
       continue;
     }
     
-    if (input == BUILTIN_EXIT) {
+    if (input == BUILTIN_EXIT)
+    {
       break;
     }
   
     // Parse input into command and arguments
-    std::string command;
-    std::vector<std::string> args;
-    parse_input(input, command, args);
+    user_input u_input;
+    parse_input(input, u_input);
+    if (u_input.command.empty())
+    {
+      continue; // No command entered
+    }
+    
+    // Handle output redirection if specified
+    std::unique_ptr<stdout_redirector> redirector;
+    if (u_input.has_redirect() && u_input.has_builtin_command())
+    {
+      // Only redirect for builtins, not external commands
+      // External commands will handle redirection via shell
+      try
+      {
+        redirector = std::make_unique<stdout_redirector>(u_input.redirect_filename);
+      }
+      catch (const std::exception& e)
+      {
+        std::cerr << e.what() << std::endl;
+        continue;
+      }
+    }
     
     // Handle commands
-    if (command == BUILTIN_ECHO) {
-      handle_echo(args);
-    } else if (command == BUILTIN_TYPE) {
-      handle_type(args);
-    } else if (command == BUILTIN_PWD) {
+    if (u_input.command == BUILTIN_ECHO)
+    {
+      handle_echo(u_input.args);
+    }
+    else if (u_input.command == BUILTIN_TYPE)
+    {
+      handle_type(u_input.args);
+    }
+    else if (u_input.command == BUILTIN_PWD)
+    {
       handle_pwd();
-    } else if (command == BUILTIN_CD) {
-      handle_cd(args);
-    } else {
+    }
+    else if (u_input.command == BUILTIN_CD)
+    {
+      handle_cd(u_input.args);
+    }
+    else
+    {
       // Try to execute as external command
-      execute_external_command(command, args);
+      execute_external_command(u_input.command, u_input.args, u_input.redirect_filename);
     }
   }
 
