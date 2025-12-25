@@ -22,11 +22,17 @@ struct user_input
 {
   std::string command = "";
   std::vector<std::string> args = {};
-  std::string redirect_filename = "";
+  std::string stdout_redirect_filename = "";
+  std::string stderr_redirect_filename = "";
 
-  bool has_redirect() const
+  bool has_stdout_redirect() const
   {
-    return !redirect_filename.empty();
+    return !stdout_redirect_filename.empty();
+  }
+
+  bool has_stderr_redirect() const
+  {
+    return !stderr_redirect_filename.empty();
   }
 
   bool has_builtin_command() const
@@ -51,7 +57,7 @@ class stdout_redirector
       original_buf = std::cout.rdbuf(); // Save original buffer
 
       fs::path file_path(filename);
-      if (!file_path.is_absolute() && file_path.has_parent_path())
+      if (file_path.has_parent_path())
       {
         fs::create_directories(file_path.parent_path());
       }
@@ -70,6 +76,45 @@ class stdout_redirector
     ~stdout_redirector()
     {
       std::cout.rdbuf(original_buf); // Restore original buffer
+      if (file_stream.is_open())
+      {
+        file_stream.close();
+      }
+    }
+
+  private:
+    std::streambuf* original_buf;
+    std::ofstream file_stream;
+};
+
+//RAII class to redirect stderr to a file
+class stderr_redirector
+{
+  public:
+    stderr_redirector(const std::string& filename)
+    {
+      original_buf = std::cerr.rdbuf(); // Save original buffer
+
+      fs::path file_path(filename);
+      if (file_path.has_parent_path())
+      {
+        fs::create_directories(file_path.parent_path());
+      }
+
+      file_stream.open(filename, std::ios::out | std::ios::trunc);
+      if (file_stream.is_open())
+      {
+        std::cerr.rdbuf(file_stream.rdbuf()); // Redirect stderr to file
+      }
+      else
+      {
+        throw std::runtime_error("Failed to open file for redirection");
+      }
+    }
+
+    ~stderr_redirector()
+    {
+      std::cerr.rdbuf(original_buf); // Restore original buffer
       if (file_stream.is_open())
       {
         file_stream.close();
@@ -143,7 +188,7 @@ void parse_input(const std::string& input, user_input &u_input)
 {
   u_input.command.clear();
   u_input.args.clear();
-  u_input.redirect_filename.clear();
+  u_input.stdout_redirect_filename.clear();
   
   size_t i = 0;
   
@@ -177,7 +222,7 @@ void parse_input(const std::string& input, user_input &u_input)
       {
         if (j + 1 < u_input.args.size())
         {
-          u_input.redirect_filename = u_input.args[j + 1];
+          u_input.stdout_redirect_filename = u_input.args[j + 1];
           // Remove redirection operator and filename from args
           u_input.args.erase(u_input.args.begin() + j, u_input.args.begin() + j + 2);
         }
@@ -185,7 +230,21 @@ void parse_input(const std::string& input, user_input &u_input)
         {
           std::cerr << "Error: No filename provided for redirection" << std::endl;
         }
-        break; // Only handle first redirection
+        //break; // Only handle first redirection
+      }
+      else if (u_input.args[j] == "2>")
+      {
+        if (j + 1 < u_input.args.size())
+        {
+          u_input.stderr_redirect_filename = u_input.args[j + 1];
+          // Remove redirection operator and filename from args
+          u_input.args.erase(u_input.args.begin() + j, u_input.args.begin() + j + 2);
+        }
+        else
+        {
+          std::cerr << "Error: No filename provided for redirection" << std::endl;
+        }
+        //break; // Only handle first redirection
       }
     }
   }
@@ -351,33 +410,37 @@ std::string escape_for_shell(const std::string& str, bool& needs_quoting)
 }
 
 // Execute external command using system()
-void execute_external_command(const std::string& cmd, const std::vector<std::string>& args, const std::string& redirect_file = "")
+void execute_external_command(const user_input &u_input)
 {
   std::string full_path;
-  if (find_in_path(cmd, full_path))
+  if (find_in_path(u_input.command, full_path))
   {
     // Build command string - quote only if necessary
     bool needs_quoting;
-    std::string escaped_cmd = escape_for_shell(cmd, needs_quoting);
+    std::string escaped_cmd = escape_for_shell(u_input.command, needs_quoting);
     std::string full_command = needs_quoting ? "\"" + escaped_cmd + "\"" : escaped_cmd;
     
-    for (const auto& arg : args)
+    for (const auto& arg : u_input.args)
     {
       std::string escaped_arg = escape_for_shell(arg, needs_quoting);
       full_command +=  " \"" + escaped_arg + "\"";
     }
     
     // Append redirection if specified
-    if (!redirect_file.empty())
+    if (u_input.has_stdout_redirect())
     {
-      full_command += " > \"" + redirect_file + "\"";
+      full_command += " > \"" + u_input.stdout_redirect_filename + "\"";
+    }
+    if (u_input.has_stderr_redirect())
+    {
+      full_command += " 2> \"" + u_input.stderr_redirect_filename + "\"";
     }
     
     system(full_command.c_str());
   }
   else
   {
-    std::cerr << cmd << ": command not found" << std::endl;
+    std::cerr << u_input.command << ": command not found" << std::endl;
   }
 }
 
@@ -411,13 +474,29 @@ int main()
     
     // Handle output redirection if specified
     std::unique_ptr<stdout_redirector> redirector;
-    if (u_input.has_redirect() && u_input.has_builtin_command())
+    if (u_input.has_stdout_redirect() && u_input.has_builtin_command())
     {
       // Only redirect for builtins, not external commands
       // External commands will handle redirection via shell
       try
       {
-        redirector = std::make_unique<stdout_redirector>(u_input.redirect_filename);
+        redirector = std::make_unique<stdout_redirector>(u_input.stdout_redirect_filename);
+      }
+      catch (const std::exception& e)
+      {
+        std::cerr << e.what() << std::endl;
+        continue;
+      }
+    }
+
+    std::unique_ptr<stderr_redirector> err_redirector;
+    if (u_input.has_stderr_redirect() && u_input.has_builtin_command())
+    {
+      // Only redirect for builtins, not external commands
+      // External commands will handle redirection via shell
+      try
+      {
+        err_redirector = std::make_unique<stderr_redirector>(u_input.stderr_redirect_filename);
       }
       catch (const std::exception& e)
       {
@@ -446,7 +525,7 @@ int main()
     else
     {
       // Try to execute as external command
-      execute_external_command(u_input.command, u_input.args, u_input.redirect_filename);
+      execute_external_command(u_input);
     }
   }
 
