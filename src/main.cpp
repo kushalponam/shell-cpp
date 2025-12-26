@@ -24,6 +24,8 @@ struct user_input
   std::vector<std::string> args = {};
   std::string stdout_redirect_filename = "";
   std::string stderr_redirect_filename = "";
+  bool stdout_append = false;
+  bool stderr_append = false;
 
   bool has_stdout_redirect() const
   {
@@ -48,13 +50,14 @@ struct user_input
   }
 };
 
-//RAII class to redirect stdout to a file
-class stdout_redirector
+//RAII class to redirect any ostream to a file
+class stream_redirector
 {
   public:
-    stdout_redirector(const std::string& filename)
+    stream_redirector(std::ostream& stream, const std::string& filename, std::ios_base::openmode mode = std::ios::out | std::ios::trunc)
+      : stream_(stream)
     {
-      original_buf = std::cout.rdbuf(); // Save original buffer
+      original_buf = stream.rdbuf();
 
       fs::path file_path(filename);
       if (file_path.has_parent_path())
@@ -62,10 +65,10 @@ class stdout_redirector
         fs::create_directories(file_path.parent_path());
       }
 
-      file_stream.open(filename, std::ios::out | std::ios::trunc);
+      file_stream.open(filename, mode);
       if (file_stream.is_open())
       {
-        std::cout.rdbuf(file_stream.rdbuf()); // Redirect stdout to file
+        stream.rdbuf(file_stream.rdbuf());
       }
       else
       {
@@ -73,9 +76,9 @@ class stdout_redirector
       }
     }
 
-    ~stdout_redirector()
+    ~stream_redirector()
     {
-      std::cout.rdbuf(original_buf); // Restore original buffer
+      stream_.rdbuf(original_buf);
       if (file_stream.is_open())
       {
         file_stream.close();
@@ -83,45 +86,7 @@ class stdout_redirector
     }
 
   private:
-    std::streambuf* original_buf;
-    std::ofstream file_stream;
-};
-
-//RAII class to redirect stderr to a file
-class stderr_redirector
-{
-  public:
-    stderr_redirector(const std::string& filename)
-    {
-      original_buf = std::cerr.rdbuf(); // Save original buffer
-
-      fs::path file_path(filename);
-      if (file_path.has_parent_path())
-      {
-        fs::create_directories(file_path.parent_path());
-      }
-
-      file_stream.open(filename, std::ios::out | std::ios::trunc);
-      if (file_stream.is_open())
-      {
-        std::cerr.rdbuf(file_stream.rdbuf()); // Redirect stderr to file
-      }
-      else
-      {
-        throw std::runtime_error("Failed to open file for redirection");
-      }
-    }
-
-    ~stderr_redirector()
-    {
-      std::cerr.rdbuf(original_buf); // Restore original buffer
-      if (file_stream.is_open())
-      {
-        file_stream.close();
-      }
-    }
-
-  private:
+    std::ostream& stream_;
     std::streambuf* original_buf;
     std::ofstream file_stream;
 };
@@ -189,6 +154,7 @@ void parse_input(const std::string& input, user_input &u_input)
   u_input.command.clear();
   u_input.args.clear();
   u_input.stdout_redirect_filename.clear();
+  u_input.stderr_redirect_filename.clear();
   
   size_t i = 0;
   
@@ -218,11 +184,12 @@ void parse_input(const std::string& input, user_input &u_input)
     // check for redirection operator
     for (size_t j = 0; j <u_input.args.size(); j++)
     {
-      if (u_input.args[j] == ">" || u_input.args[j] == "1>")
+      if (u_input.args[j] == ">" || u_input.args[j] == "1>" || u_input.args[j] == ">>" || u_input.args[j] == "1>>")
       {
         if (j + 1 < u_input.args.size())
         {
           u_input.stdout_redirect_filename = u_input.args[j + 1];
+          u_input.stdout_append = u_input.args[j] == ">>" || u_input.args[j] == "1>>";
           // Remove redirection operator and filename from args
           u_input.args.erase(u_input.args.begin() + j, u_input.args.begin() + j + 2);
         }
@@ -230,13 +197,13 @@ void parse_input(const std::string& input, user_input &u_input)
         {
           std::cerr << "Error: No filename provided for redirection" << std::endl;
         }
-        //break; // Only handle first redirection
       }
-      else if (u_input.args[j] == "2>")
+      else if (u_input.args[j] == "2>" || u_input.args[j] == "2>>")
       {
         if (j + 1 < u_input.args.size())
         {
           u_input.stderr_redirect_filename = u_input.args[j + 1];
+          u_input.stderr_append = u_input.args[j] == "2>>";
           // Remove redirection operator and filename from args
           u_input.args.erase(u_input.args.begin() + j, u_input.args.begin() + j + 2);
         }
@@ -244,7 +211,6 @@ void parse_input(const std::string& input, user_input &u_input)
         {
           std::cerr << "Error: No filename provided for redirection" << std::endl;
         }
-        //break; // Only handle first redirection
       }
     }
   }
@@ -429,11 +395,13 @@ void execute_external_command(const user_input &u_input)
     // Append redirection if specified
     if (u_input.has_stdout_redirect())
     {
-      full_command += " > \"" + u_input.stdout_redirect_filename + "\"";
+      std::string operator_str = u_input.stdout_append ? " >> " : " > ";
+      full_command += operator_str + "\"" + u_input.stdout_redirect_filename + "\"";
     }
     if (u_input.has_stderr_redirect())
     {
-      full_command += " 2> \"" + u_input.stderr_redirect_filename + "\"";
+      std::string operator_str = u_input.stderr_append ? " 2>> " : " 2> ";
+      full_command += operator_str + "\"" + u_input.stderr_redirect_filename + "\"";
     }
     
     system(full_command.c_str());
@@ -473,14 +441,15 @@ int main()
     }
     
     // Handle output redirection if specified
-    std::unique_ptr<stdout_redirector> redirector;
+    std::unique_ptr<stream_redirector> stdout_redir;
     if (u_input.has_stdout_redirect() && u_input.has_builtin_command())
     {
-      // Only redirect for builtins, not external commands
-      // External commands will handle redirection via shell
       try
       {
-        redirector = std::make_unique<stdout_redirector>(u_input.stdout_redirect_filename);
+        std::ios_base::openmode mode = u_input.stdout_append ? 
+                                       (std::ios::out | std::ios::app) : (std::ios::out | std::ios::trunc);
+
+        stdout_redir = std::make_unique<stream_redirector>(std::cout, u_input.stdout_redirect_filename, mode);
       }
       catch (const std::exception& e)
       {
@@ -489,14 +458,15 @@ int main()
       }
     }
 
-    std::unique_ptr<stderr_redirector> err_redirector;
+    std::unique_ptr<stream_redirector> stderr_redir;
     if (u_input.has_stderr_redirect() && u_input.has_builtin_command())
     {
-      // Only redirect for builtins, not external commands
-      // External commands will handle redirection via shell
       try
       {
-        err_redirector = std::make_unique<stderr_redirector>(u_input.stderr_redirect_filename);
+        std::ios_base::openmode mode = u_input.stderr_append ? 
+                                       (std::ios::out | std::ios::app) : (std::ios::out | std::ios::trunc);
+
+        stderr_redir = std::make_unique<stream_redirector>(std::cerr, u_input.stderr_redirect_filename, mode);
       }
       catch (const std::exception& e)
       {
