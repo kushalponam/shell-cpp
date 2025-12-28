@@ -26,7 +26,9 @@ char** command_completion(const char* text, int start, int end)
     std::vector<std::string> matches = find_matching_commands(std::string(text));
 
     if (matches.empty())
+    {
         return nullptr;
+    }
 
     char** result = (char**)malloc((matches.size() + 1) * sizeof(char*));
     for (size_t i = 0; i < matches.size(); i++)
