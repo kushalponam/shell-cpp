@@ -14,8 +14,10 @@ int main()
   std::string input;
   while (true)
   {
-    std::cout << "$ ";
-    if (!std::getline(std::cin, input) || input.empty())
+    // Get user input
+    input = GetUserInput();
+
+    if (input.empty())
     {
       continue;
     }

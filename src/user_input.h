@@ -16,7 +16,16 @@ const std::string BUILTIN_EXIT = "exit";
 const std::string BUILTIN_PWD = "pwd";
 const std::string BUILTIN_CD = "cd";
 
+const std::set<std::string> BuiltinCommands = {
+  BUILTIN_ECHO,
+  BUILTIN_TYPE,
+  BUILTIN_EXIT,
+  BUILTIN_PWD,
+  BUILTIN_CD
+};
 const std::set<char> EscapedCharsInDoubleQuotes = {'$', '`', '"', '\\', '\n'};
+
+std::string GetUserInput();
 
 struct user_input
 {
