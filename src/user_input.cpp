@@ -1,7 +1,9 @@
 #include "user_input.h"
+#include <map>
 #include <readline/readline.h>
 #include <readline/history.h>
 
+extern std::map<std::string, std::string> Executables;
 
 // Common matching logic for both platforms
 std::vector<std::string> find_matching_commands(const std::string& prefix)
@@ -14,6 +16,15 @@ std::vector<std::string> find_matching_commands(const std::string& prefix)
             matches.push_back(cmd);
         }
     }
+
+    for (const auto& [exe_name, exe_path] : Executables)
+    {
+        if (!prefix.empty() && exe_name.starts_with(prefix))  // Check if exe_name starts with prefix
+        {
+            matches.push_back(exe_name);
+        }
+    }
+    
     return matches;
 }
 

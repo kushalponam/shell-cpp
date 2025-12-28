@@ -14,6 +14,63 @@ bool has_execute_permission(const fs::path& path)
          ((perms & fs::perms::others_exec) == fs::perms::others_exec);
 }
 
+std::map<std::string, std::string> get_all_executables_in_path()
+{
+  std::map<std::string, std::string> executables;
+  const char* path_env = std::getenv("PATH");
+  if (path_env == nullptr)
+  {
+    return executables;
+  }
+  
+  std::string path_str(path_env);
+  std::istringstream path_stream(path_str);
+  std::string dir;
+
+  while (std::getline(path_stream, dir, ':'))
+  {
+    // Skip empty directory strings
+    if (dir.empty())
+    {
+      continue;
+    }
+
+    // Iterate over files in directory
+    try {
+      for (const auto& entry : fs::directory_iterator(dir, fs::directory_options::skip_permission_denied))
+      {
+        std::string filename = entry.path().filename().string();
+        
+        // Skip hidden files and files with extensions (quick checks before expensive fs calls)
+        if (filename[0] == '.' || filename.find('.') != std::string::npos)
+        {
+          continue;
+        }
+        
+        // Use symlink_status to avoid resolving symlinks, then check file type
+        try {
+          fs::file_status status = fs::symlink_status(entry.path());
+          if (fs::is_regular_file(status) && has_execute_permission(entry.path()))
+          {
+            executables[filename] = entry.path().string();
+          }
+        }
+        catch (...)
+        {
+          continue;
+        }
+      }
+    }
+    catch (...)
+    {
+      continue;
+    }
+  }
+  
+  return executables;
+}
+
+
 bool find_in_path(const std::string& cmd, std::string& full_path)
 {
   const char* path_env = std::getenv("PATH");

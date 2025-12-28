@@ -7,6 +7,9 @@
 #include "shell_commands.h"
 #include "shell_executor.h"
 
+bool initialized_executables = false;
+std::map<std::string, std::string> Executables;
+
 int main()
 {
   // Flush after every std::cout / std::cerr
@@ -14,6 +17,12 @@ int main()
   std::string input;
   while (true)
   {
+    if (!initialized_executables)
+    {
+      Executables = get_all_executables_in_path();
+      initialized_executables = true;
+    }
+
     // Get user input
     input = GetUserInput();
 
