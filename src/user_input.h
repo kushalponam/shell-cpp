@@ -48,9 +48,7 @@ struct user_input
 
   bool has_builtin_command() const
   {
-    return command == BUILTIN_ECHO || command == BUILTIN_TYPE ||
-           command == BUILTIN_EXIT || command == BUILTIN_PWD ||
-           command == BUILTIN_CD;
+    return BuiltinCommands.contains(command);
   }
 
   bool has_arguments() const

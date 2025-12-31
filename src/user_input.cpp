@@ -1,3 +1,4 @@
+#include "Trie.h"
 #include "user_input.h"
 #include <map>
 #include <algorithm>
@@ -5,6 +6,7 @@
 #include <readline/history.h>
 
 extern std::map<std::string, std::string> Executables;
+extern Trie *trie;
 
 // Common matching logic for both platforms
 std::vector<std::string> find_matching_commands(const std::string& prefix)
@@ -54,7 +56,18 @@ char** command_completion(const char* text, int start, int end)
     if (matches.size() > 1)
     {
         tabCount++;
-        if (tabCount >= 2)
+        if (tabCount == 1)
+        {
+            // First tab press: complete to longest common prefix
+            std::string lcp = trie->getLongestCommonPrefix(currentPrefix);
+            if (lcp != currentPrefix)
+            {
+                // Update the line with the new prefix
+                rl_replace_line(lcp.c_str(), 0);
+                rl_point = lcp.length();
+            }
+        }
+        else if (tabCount >= 2)
         {
             // Second tab press: display all matches sorted alphabetically
             std::sort(matches.begin(), matches.end());

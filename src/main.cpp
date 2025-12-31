@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 
+#include "Trie.h"
 #include "user_input.h"
 #include "shell_parser.h"
 #include "shell_commands.h"
@@ -9,6 +10,7 @@
 
 bool initialized_executables = false;
 std::map<std::string, std::string> Executables;
+Trie *trie;
 
 int main()
 {
@@ -20,6 +22,12 @@ int main()
     if (!initialized_executables)
     {
       Executables = get_all_executables_in_path();
+      trie = new Trie();
+      for (const auto& [exe_name, exe_path] : Executables)
+      {
+        trie->insert(exe_name);
+      }
+
       initialized_executables = true;
     }
 
@@ -101,6 +109,11 @@ int main()
       // Try to execute as external command
       execute_external_command(u_input);
     }
+  }
+  
+  if (trie)
+  {
+    delete trie;
   }
 
   return 0;
