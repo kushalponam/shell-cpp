@@ -9,47 +9,6 @@
 extern std::map<std::string, std::string> Executables;
 extern Trie *trie;
 
-bool isCommonPrefix(std::vector<std::string>& strs, int len)
-{
-    std::string str1 = strs[0].substr(0, len);
-    for (int i=1; i<strs.size(); i++)
-    {
-        if (strs[i].find(str1) != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::string longestCommonPrefix(std::vector<std::string>& strs) 
-{
-    if (strs.empty()) return "";
-
-    int minLen = INT_MAX;
-    for (std::string str: strs)
-    {
-        minLen = std::min(minLen, (int)str.length());
-    }
-    int low = 0;
-    int high = minLen;
-
-    while (low <= high)
-    {
-        int mid = low + (high - low) / 2;
-        if (isCommonPrefix(strs, mid))
-        {
-            low = mid + 1;
-        }
-        else
-        {
-            high = mid - 1;
-        }
-    }
-    return strs[0].substr(0, (low+high)/2 );
-}
-
-
-
 // Common matching logic for both platforms
 std::vector<std::string> find_matching_commands(const std::string& prefix)
 {
@@ -101,8 +60,7 @@ char** command_completion(const char* text, int start, int end)
         if (tabCount == 1)
         {
             // First tab press: complete to longest common prefix. Can use Trie or simple binary search.
-            //std::string lcp = trie->getLongestCommonPrefix(currentPrefix);
-            std::string lcp = longestCommonPrefix(matches);
+            std::string lcp = trie->getLongestCommonPrefix(currentPrefix);
             if (lcp != currentPrefix)
             {
                 // Update the line with the new prefix
