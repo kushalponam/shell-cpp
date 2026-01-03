@@ -149,9 +149,6 @@ int main()
           close(pipe_fds[j][1]);
         }
 
-        // Sync C++ streams with redirected file descriptors
-        std::cout.flush();
-        std::cerr.flush();
         ExecuteInputCommand(u_inputs[i]);
         exit(0);
       }
