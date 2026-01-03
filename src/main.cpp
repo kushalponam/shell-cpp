@@ -121,8 +121,8 @@ int main()
       continue;
     }
     
-    int pipe_fds[u_inputs.size()][2];
-    for (size_t i = 0; i < u_inputs.size(); i++)
+    int pipe_fds[u_inputs.size() - 1][2];
+    for (size_t i = 0; i < u_inputs.size() - 1; i++)
     {
       if (pipe(pipe_fds[i]) == -1)
       {
@@ -143,7 +143,7 @@ int main()
         if (i < u_inputs.size() - 1) dup2(pipe_fds[i][1], STDOUT_FILENO);
         
         // Close all pipe fds in child
-        for (size_t j = 0; j < u_inputs.size(); j++)
+        for (size_t j = 0; j < u_inputs.size() - 1; j++)
         {
           close(pipe_fds[j][0]);
           close(pipe_fds[j][1]);
@@ -159,7 +159,7 @@ int main()
       } 
     }
 
-    for (size_t i = 0; i < u_inputs.size(); i++)
+    for (size_t i = 0; i < u_inputs.size() - 1; i++)
     {
       // Close all pipe fds in parent
       close(pipe_fds[i][0]);
