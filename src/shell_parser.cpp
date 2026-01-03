@@ -55,6 +55,8 @@ void parse_input(const std::string& input, user_input& u_input)
   u_input.stderr_redirect_filename.clear();
   
   size_t i = 0;
+
+  if (input.empty()) return;
   
   // Skip leading whitespace
   while (i < input.size() && input[i] == ' ') i++;
@@ -111,5 +113,44 @@ void parse_input(const std::string& input, user_input& u_input)
         }
       }
     }
+  }
+}
+
+void parse_pipeline_input(const std::string& input, std::vector<user_input>& u_inputs)
+{
+  u_inputs.clear();
+
+  if (input.empty()) return;
+
+  if (input.find('|') == std::string::npos)
+  {
+    // No pipeline, parse normally
+    user_input u_input;
+    parse_input(input, u_input);
+    
+    u_inputs.push_back(u_input);
+    return;
+  }
+
+  size_t pos = input.find('|');
+  size_t start = 0;
+  while (pos != std::string::npos)
+  {
+    std::string segment = input.substr(start, pos - start);
+    user_input u_input;
+    parse_input(segment, u_input);
+    u_inputs.push_back(u_input);
+
+    start = pos + 1;
+    pos = input.find('|', start);
+  }
+  
+  // Handle the last segment after the final '|'
+  if (start < input.size())
+  {
+    std::string segment = input.substr(start);
+    user_input u_input;
+    parse_input(segment, u_input);
+    u_inputs.push_back(u_input);
   }
 }
