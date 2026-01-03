@@ -15,13 +15,15 @@ const std::string BUILTIN_TYPE = "type";
 const std::string BUILTIN_EXIT = "exit";
 const std::string BUILTIN_PWD = "pwd";
 const std::string BUILTIN_CD = "cd";
+const std::string BUILTIN_HISTORY = "history";
 
 const std::set<std::string> BuiltinCommands = {
   BUILTIN_ECHO,
   BUILTIN_TYPE,
   BUILTIN_EXIT,
   BUILTIN_PWD,
-  BUILTIN_CD
+  BUILTIN_CD,
+  BUILTIN_HISTORY
 };
 const std::set<char> EscapedCharsInDoubleQuotes = {'$', '`', '"', '\\', '\n'};
 

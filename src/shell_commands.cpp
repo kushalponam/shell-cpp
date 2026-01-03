@@ -1,3 +1,4 @@
+#include "user_input.h"
 #include "shell_commands.h"
 #include <filesystem>
 #include <iostream>
@@ -73,7 +74,7 @@ void handle_type(const std::vector<std::string>& args)
   const std::string& cmd = args[0];
   
   // Check if it's a builtin
-  if (cmd == "echo" || cmd == "type" || cmd == "exit" || cmd == "pwd" || cmd == "cd")
+  if (BuiltinCommands.contains(cmd))
   {
     std::cout << cmd << " is a shell builtin" << std::endl;
     return;
