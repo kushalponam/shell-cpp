@@ -183,6 +183,12 @@ int main()
     }
   }
   
+  // Before exiting, write history to HISTFILE if set
+  if (histfile)
+  {
+    write_history(histfile);
+  }
+
   if (trie)
   {
     delete trie;
