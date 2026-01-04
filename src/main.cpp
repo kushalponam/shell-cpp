@@ -67,6 +67,10 @@ void ExecuteInputCommand(const user_input& u_input)
   {
     handle_cd(u_input.args);
   }
+  else if (u_input.command == BUILTIN_HISTORY)
+  {
+    handle_history();
+  }
   else
   {
     // Try to execute as external command

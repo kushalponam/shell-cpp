@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <sstream>
+#include <readline/history.h>
 
 namespace fs = std::filesystem;
 
@@ -92,5 +93,17 @@ void handle_type(const std::vector<std::string>& args)
   else
   {
     std::cerr << cmd << ": not found" << std::endl;
+  }
+}
+
+void handle_history()
+{
+  HIST_ENTRY **historyList = history_list();
+  if (historyList)
+  {
+    for (int i = 0; historyList[i] != nullptr; i++)
+    {
+      std::cout << i + history_base << "  " << historyList[i]->line << std::endl;
+    }
   }
 }
