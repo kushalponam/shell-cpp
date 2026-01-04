@@ -109,7 +109,7 @@ void handle_history(const std::vector<std::string>& args)
       }
     }
   }
-  else if (args.size() == 1)
+  else if (args.size() == 1) // Print last N lines
   {
     try
     {
@@ -138,6 +138,17 @@ void handle_history(const std::vector<std::string>& args)
     catch (const std::out_of_range&)
     {
       std::cerr << "history: argument out of range: " << args[0] << std::endl;
+    }
+  }
+  else if (args.size() == 2)
+  {
+    if (args[0] == "-r")
+    {
+      int result = read_history(args[1].c_str());
+      if (result != 0)
+      {
+        std::cerr << "history: error reading history from " << args[1] << std::endl;
+      }
     }
   }
   else
