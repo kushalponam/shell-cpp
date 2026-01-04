@@ -16,4 +16,4 @@ void handle_cd(const std::vector<std::string>& args);
 void handle_type(const std::vector<std::string>& args);
 
 // Handle history builtin
-void handle_history();
+void handle_history(const std::vector<std::string>& args);

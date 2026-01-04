@@ -96,14 +96,52 @@ void handle_type(const std::vector<std::string>& args)
   }
 }
 
-void handle_history()
+void handle_history(const std::vector<std::string>& args)
 {
-  HIST_ENTRY **historyList = history_list();
-  if (historyList)
+  if (args.size() == 0)
   {
-    for (int i = 0; historyList[i] != nullptr; i++)
+    HIST_ENTRY **historyList = history_list();
+    if (historyList)
     {
-      std::cout << i + history_base << "  " << historyList[i]->line << std::endl;
+      for (int i = 0; historyList[i] != nullptr; i++)
+      {
+        std::cout << i + history_base << "  " << historyList[i]->line << std::endl;
+      }
     }
+  }
+  else if (args.size() == 1)
+  {
+    try
+    {
+      int num_lines = std::stoi(args[0]);
+      if (num_lines < 0)
+      {
+        std::cerr << "history: invalid number of lines: " << args[0] << std::endl;
+        return;
+      }
+      
+      HIST_ENTRY **historyList = history_list();
+      if (historyList)
+      {
+        int total_entries = where_history() + 1;
+        int start_index = std::max(0, total_entries - num_lines);
+        for (int i = start_index; i < total_entries; i++)
+        {
+          std::cout << i + history_base << "  " << historyList[i]->line << std::endl;
+        }
+      }
+    }
+    catch (const std::invalid_argument&)
+    {
+      std::cerr << "history: invalid argument: " << args[0] << std::endl;
+    }
+    catch (const std::out_of_range&)
+    {
+      std::cerr << "history: argument out of range: " << args[0] << std::endl;
+    }
+  }
+  else
+  {
+    std::cerr << "history: too many arguments" << std::endl;
   }
 }

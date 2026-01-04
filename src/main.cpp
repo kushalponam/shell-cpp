@@ -69,7 +69,7 @@ void ExecuteInputCommand(const user_input& u_input)
   }
   else if (u_input.command == BUILTIN_HISTORY)
   {
-    handle_history();
+    handle_history(u_input.args);
   }
   else
   {
