@@ -13,7 +13,7 @@
 
 bool initialized_executables = false;
 std::map<std::string, std::string> Executables;
-Trie *trie;
+Trie *trie;  
 
 
 void ExecuteInputCommand(const user_input& u_input)
@@ -99,6 +99,10 @@ int main()
       for (const auto& [exe_name, exe_path] : Executables)
       {
         trie->insert(exe_name);
+      }
+      for (const auto& builtin_cmd : BuiltinCommands)
+      {
+        trie->insert(builtin_cmd);
       }
 
       initialized_executables = true;
