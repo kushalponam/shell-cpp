@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <readline/history.h>
+#include <map>
 
 namespace fs = std::filesystem;
 
@@ -96,6 +97,9 @@ void handle_type(const std::vector<std::string>& args)
   }
 }
 
+// Track entries appended for each file to avoid duplicates
+static std::map<std::string, int> appended_counts;
+
 void handle_history(const std::vector<std::string>& args)
 {
   if (args.size() == 0)
@@ -149,6 +153,7 @@ void handle_history(const std::vector<std::string>& args)
       {
         std::cerr << "history: error reading history from " << args[1] << std::endl;
       }
+      appended_counts[args[1]] = where_history() + 1;
     }
     else if (args[0] == "-w")
     {
@@ -157,13 +162,25 @@ void handle_history(const std::vector<std::string>& args)
       {
         std::cerr << "history: error writing history to " << args[1] << std::endl;
       }
+      appended_counts[args[1]] = where_history() + 1;
     }
     else if (args[0] == "-a")
     {
-      int result = append_history(0, args[1].c_str());
-      if (result != 0)
+      int total_entries = where_history() + 1;
+      int last_appended = appended_counts[args[1]];
+      int to_append = total_entries - last_appended;
+      
+      if (to_append > 0)
       {
-        std::cerr << "history: error appending history to " << args[1] << std::endl;
+        int result = append_history(to_append, args[1].c_str());
+        if (result != 0)
+        {
+          std::cerr << "history: error appending history to " << args[1] << std::endl;
+        }
+        else
+        {
+          appended_counts[args[1]] = total_entries;
+        }
       }
     }
   }
