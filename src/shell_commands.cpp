@@ -150,6 +150,14 @@ void handle_history(const std::vector<std::string>& args)
         std::cerr << "history: error reading history from " << args[1] << std::endl;
       }
     }
+    else if (args[0] == "-w")
+    {
+      int result = write_history(args[1].c_str());
+      if (result != 0)
+      {
+        std::cerr << "history: error writing history to " << args[1] << std::endl;
+      }
+    }
   }
   else
   {
