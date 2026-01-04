@@ -9,6 +9,7 @@
 #include "shell_parser.h"
 #include "shell_commands.h"
 #include "shell_executor.h"
+#include <readline/history.h>
 
 bool initialized_executables = false;
 std::map<std::string, std::string> Executables;
@@ -80,7 +81,13 @@ void ExecuteInputCommand(const user_input& u_input)
 
 int main()
 {
-  // Flush after every std::cout / std::cerr
+  // Read from HISTFILE if set (only if it's a regular file)
+  const char* histfile = std::getenv("HISTFILE");
+  if (histfile && std::filesystem::exists(histfile) && std::filesystem::is_regular_file(histfile))
+  {
+    read_history(histfile);
+    // Silently ignore errors during startup history loading
+  }
 
   std::string input;
   while (true)

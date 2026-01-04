@@ -9,6 +9,9 @@
 
 namespace fs = std::filesystem;
 
+// Track entries appended for each file to avoid duplicates
+static std::map<std::string, int> appended_counts;
+
 void handle_echo(const std::vector<std::string>& args)
 {
   for (size_t i = 0; i < args.size(); ++i)
@@ -97,9 +100,6 @@ void handle_type(const std::vector<std::string>& args)
   }
 }
 
-// Track entries appended for each file to avoid duplicates
-static std::map<std::string, int> appended_counts;
-
 void handle_history(const std::vector<std::string>& args)
 {
   if (args.size() == 0)
@@ -146,7 +146,7 @@ void handle_history(const std::vector<std::string>& args)
   }
   else if (args.size() == 2)
   {
-    if (args[0] == "-r")
+    if (args[0] == "-r") // Read history from file
     {
       int result = read_history(args[1].c_str());
       if (result != 0)
@@ -155,7 +155,7 @@ void handle_history(const std::vector<std::string>& args)
       }
       appended_counts[args[1]] = where_history() + 1;
     }
-    else if (args[0] == "-w")
+    else if (args[0] == "-w") // Write history to file
     {
       int result = write_history(args[1].c_str());
       if (result != 0)
@@ -164,13 +164,13 @@ void handle_history(const std::vector<std::string>& args)
       }
       appended_counts[args[1]] = where_history() + 1;
     }
-    else if (args[0] == "-a")
+    else if (args[0] == "-a") // Append history to file
     {
       int total_entries = where_history() + 1;
       int last_appended = appended_counts[args[1]];
       int to_append = total_entries - last_appended;
       
-      if (to_append > 0)
+      if (to_append > 0) // Only append if there are new entries
       {
         int result = append_history(to_append, args[1].c_str());
         if (result != 0)
@@ -182,6 +182,10 @@ void handle_history(const std::vector<std::string>& args)
           appended_counts[args[1]] = total_entries;
         }
       }
+    }
+    else
+    {
+      std::cerr << "history: invalid option: " << args[0] << std::endl;
     }
   }
   else
