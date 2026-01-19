@@ -3,9 +3,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
 
 namespace fs = std::filesystem;
 
@@ -17,84 +17,79 @@ const std::string BUILTIN_PWD = "pwd";
 const std::string BUILTIN_CD = "cd";
 const std::string BUILTIN_HISTORY = "history";
 
-const std::set<std::string> BuiltinCommands = {
-  BUILTIN_ECHO,
-  BUILTIN_TYPE,
-  BUILTIN_EXIT,
-  BUILTIN_PWD,
-  BUILTIN_CD,
-  BUILTIN_HISTORY
-};
+const std::set<std::string> BuiltinCommands = {BUILTIN_ECHO, BUILTIN_TYPE, BUILTIN_EXIT,
+                                               BUILTIN_PWD,  BUILTIN_CD,   BUILTIN_HISTORY};
 const std::set<char> EscapedCharsInDoubleQuotes = {'$', '`', '"', '\\', '\n'};
 
 std::string GetUserInput();
 
 struct user_input
 {
-  std::string command = "";
-  std::vector<std::string> args = {};
-  std::string stdout_redirect_filename = "";
-  std::string stderr_redirect_filename = "";
-  bool stdout_append = false;
-  bool stderr_append = false;
+    std::string command = "";
+    std::vector<std::string> args = {};
+    std::string stdout_redirect_filename = "";
+    std::string stderr_redirect_filename = "";
+    bool stdout_append = false;
+    bool stderr_append = false;
 
-  bool has_stdout_redirect() const
-  {
-    return !stdout_redirect_filename.empty();
-  }
+    bool has_stdout_redirect() const
+    {
+        return !stdout_redirect_filename.empty();
+    }
 
-  bool has_stderr_redirect() const
-  {
-    return !stderr_redirect_filename.empty();
-  }
+    bool has_stderr_redirect() const
+    {
+        return !stderr_redirect_filename.empty();
+    }
 
-  bool has_builtin_command() const
-  {
-    return BuiltinCommands.contains(command);
-  }
+    bool has_builtin_command() const
+    {
+        return BuiltinCommands.contains(command);
+    }
 
-  bool has_arguments() const
-  {
-    return !args.empty();
-  }
+    bool has_arguments() const
+    {
+        return !args.empty();
+    }
 };
 
 // RAII class to redirect any ostream to a file
 class stream_redirector
 {
-  public:
-    stream_redirector(std::ostream& stream, const std::string& filename, std::ios_base::openmode mode = std::ios::out | std::ios::trunc)
-      : stream_(stream)
+   public:
+    stream_redirector(std::ostream& stream, const std::string& filename,
+                      std::ios_base::openmode mode = std::ios::out | std::ios::trunc)
+        : stream_(stream)
     {
-      original_buf = stream.rdbuf();
+        original_buf = stream.rdbuf();
 
-      fs::path file_path(filename);
-      if (file_path.has_parent_path())
-      {
-        fs::create_directories(file_path.parent_path());
-      }
+        fs::path file_path(filename);
+        if (file_path.has_parent_path())
+        {
+            fs::create_directories(file_path.parent_path());
+        }
 
-      file_stream.open(filename, mode);
-      if (file_stream.is_open())
-      {
-        stream.rdbuf(file_stream.rdbuf());
-      }
-      else
-      {
-        throw std::runtime_error("Failed to open file for redirection");
-      }
+        file_stream.open(filename, mode);
+        if (file_stream.is_open())
+        {
+            stream.rdbuf(file_stream.rdbuf());
+        }
+        else
+        {
+            throw std::runtime_error("Failed to open file for redirection");
+        }
     }
 
     ~stream_redirector()
     {
-      stream_.rdbuf(original_buf);
-      if (file_stream.is_open())
-      {
-        file_stream.close();
-      }
+        stream_.rdbuf(original_buf);
+        if (file_stream.is_open())
+        {
+            file_stream.close();
+        }
     }
 
-  private:
+   private:
     std::ostream& stream_;
     std::streambuf* original_buf;
     std::ofstream file_stream;

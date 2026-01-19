@@ -1,8 +1,9 @@
 #pragma once
 
-#include "user_input.h"
 #include <map>
 #include <string>
+
+#include "user_input.h"
 
 // Check if a file has execute permissions
 bool has_execute_permission(const std::filesystem::path& path);

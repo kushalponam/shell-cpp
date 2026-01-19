@@ -1,13 +1,16 @@
-#include "Trie.h"
 #include "user_input.h"
-#include <map>
-#include <algorithm>
-#include <readline/readline.h>
+
 #include <readline/history.h>
+#include <readline/readline.h>
+
+#include <algorithm>
 #include <climits>
+#include <map>
+
+#include "Trie.h"
 
 extern std::map<std::string, std::string> Executables;
-extern Trie *trie;
+extern Trie* trie;
 
 // Common matching logic for both platforms
 std::vector<std::string> find_matching_commands(const std::string& prefix)
@@ -23,12 +26,13 @@ std::vector<std::string> find_matching_commands(const std::string& prefix)
 
     for (const auto& [exe_name, exe_path] : Executables)
     {
-        if (!prefix.empty() && exe_name.starts_with(prefix))  // Check if exe_name starts with prefix
+        if (!prefix.empty() &&
+            exe_name.starts_with(prefix))  // Check if exe_name starts with prefix
         {
             unique_matches.insert(exe_name);
         }
     }
-    
+
     return std::vector<std::string>(unique_matches.begin(), unique_matches.end());
 }
 
@@ -43,7 +47,7 @@ char** command_completion(const char* text, int start, int end)
     std::string currentPrefix(text);
     if (currentPrefix != lastPrefix)
     {
-        tabCount = 0; // Reset tab count if prefix has changed
+        tabCount = 0;  // Reset tab count if prefix has changed
         lastPrefix = currentPrefix;
     }
 
@@ -59,7 +63,8 @@ char** command_completion(const char* text, int start, int end)
         tabCount++;
         if (tabCount == 1)
         {
-            // First tab press: complete to longest common prefix. Can use Trie or simple binary search.
+            // First tab press: complete to longest common prefix. Can use Trie or simple binary
+            // search.
             std::string lcp = trie->getLongestCommonPrefix(currentPrefix);
             if (lcp != currentPrefix)
             {
@@ -72,7 +77,7 @@ char** command_completion(const char* text, int start, int end)
         {
             // Second tab press: display all matches sorted alphabetically
             std::sort(matches.begin(), matches.end());
-            
+
             std::cout << std::endl;
             for (size_t i = 0; i < matches.size(); i++)
             {
@@ -88,10 +93,10 @@ char** command_completion(const char* text, int start, int end)
         return nullptr;
     }
 
-    char** result = (char**)malloc((matches.size() + 1) * sizeof(char*));
+    char** result = (char**) malloc((matches.size() + 1) * sizeof(char*));
     for (size_t i = 0; i < matches.size(); i++)
     {
-        result[i] = (char*)malloc(matches[i].length() + 1);
+        result[i] = (char*) malloc(matches[i].length() + 1);
         strcpy(result[i], matches[i].c_str());
     }
     result[matches.size()] = nullptr;
@@ -106,7 +111,8 @@ std::string GetUserInput()
 
     char* line = readline("$ ");
 
-    if (line == nullptr) return "";
+    if (line == nullptr)
+        return "";
 
     std::string input(line);
 

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "user_input.h"
 #include <string>
+
+#include "user_input.h"
 
 // Extract a quoted/escaped string from input starting at position i
 // Returns the processed string (without outer quotes) and advances i
